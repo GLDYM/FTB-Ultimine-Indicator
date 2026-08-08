@@ -1,20 +1,177 @@
 plugins {
-    // https://fabricmc.net/develop/
-    id 'fabric-loom' version '1.10-SNAPSHOT' apply false
-    // https://projects.neoforged.net/neoforged/moddevgradle
-    id 'net.neoforged.moddev' version '2.0.80' apply false
+    id 'idea'
+    id 'java-library'
+    id 'maven-publish'
+    id 'net.neoforged.moddev' version '2.0.80'
 }
 
-subprojects {
+version = mod_version
+group = project.group
+
+base {
+    archivesName = archives_base_name
+}
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(java_version as int)
+    withSourcesJar()
+}
+
+repositories {
+    mavenCentral()
+    maven {
+        name = 'NeoForge'
+        url = 'https://maven.neoforged.net/releases'
+    }
+    maven {
+        name = 'Sponge'
+        url = 'https://repo.spongepowered.org/repository/maven-public'
+        content {
+            includeGroupAndSubgroups 'org.spongepowered'
+        }
+    }
+    maven {
+        name = 'BlameJared'
+        url = 'https://maven.blamejared.com'
+    }
+    maven {
+        name = 'FTB Maven'
+        url = 'https://maven.ftb.dev/releases'
+        content {
+            includeGroupAndSubgroups 'dev.ftb.mods'
+        }
+    }
+    maven {
+        name = 'Shedaniel'
+        url = 'https://maven.shedaniel.me/'
+        content {
+            includeGroup 'dev.architectury'
+            includeGroup 'me.shedaniel'
+            includeGroup 'me.shedaniel.cloth'
+        }
+    }
+    maven {
+        name = 'Curse Maven'
+        url = 'https://cursemaven.com'
+        content {
+            includeGroup 'curse.maven'
+        }
+    }
+}
+
+neoForge {
+    version = neo_version
+
+    parchment {
+        minecraftVersion = parchment_minecraft_version
+        mappingsVersion = parchment_mappings_version
+    }
+
+    runs {
+        configureEach {
+            gameDirectory = project.file("runs/$name")
+
+            systemProperty 'log4j2.formatMsgNoLookups', 'true'
+            systemProperty 'mixin.debug.verbose', 'true'
+            systemProperty 'mixin.debug.export', 'true'
+            systemProperty 'mixin.checks', 'true'
+            systemProperty 'mixin.dumpTargetOnFailure', 'true'
+            systemProperty 'mixin.hotSwap', 'true'
+        }
+        client {
+            client()
+        }
+        server {
+            server()
+            programArgument '-nogui'
+        }
+    }
+
+    mods {
+        "${mod_id}" {
+            sourceSet sourceSets.main
+        }
+    }
+}
+
+dependencies {
+    compileOnly 'org.jetbrains:annotations:24.1.0'
+    annotationProcessor "org.spongepowered:mixin:${mixin_version}:processor"
+
+    implementation "dev.ftb.mods:ftb-library-neoforge:${ftb_library_version}"
+    implementation "dev.ftb.mods:ftb-ultimine-neoforge:${ftb_ultimine_version}"
+}
+
+def resourceProps = [
+        version            : version,
+        group              : project.group,
+        mod_id             : mod_id,
+        mod_name           : mod_name,
+        description        : project.description,
+        license            : license,
+        credits            : credits,
+        author             : author,
+        resourcepack_format: resourcepack_format,
+        datapack_format    : datapack_format,
+        java_version       : java_version,
+        minecraft_version  : minecraft_version,
+        neo_version        : neo_version,
+        neo_version_range  : neo_version_range,
+        loader_version_range: loader_version_range,
+        minecraft_version_range: minecraft_version_range,
+        ftb_ultimine_version_range: ftb_ultimine_version_range,
+]
+
+tasks.withType(ProcessResources).configureEach {
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE
+    filesMatching(['pack.mcmeta', '*.mixins.json', 'META-INF/neoforge.mods.toml']) {
+        expand resourceProps
+    }
+    inputs.properties resourceProps
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.release = java_version as int
+    options.encoding = 'UTF-8'
+}
+
+tasks.named('jar', Jar) {
+    from(rootProject.file('LICENSE'))
+    manifest {
+        attributes(
+                'Specification-Title': mod_name,
+                'Specification-Vendor': author,
+                'Specification-Version': '1',
+                'Implementation-Title': project.name,
+                'Implementation-Version': archiveVersion,
+                'Implementation-Vendor': author,
+                'Built-On-Minecraft': minecraft_version
+        )
+    }
+}
+
+tasks.named('sourcesJar', Jar) {
+    from(rootProject.file('LICENSE'))
+}
+
+publishing {
+    publications {
+        register('mavenJava', MavenPublication) {
+            artifactId = base.archivesName.get()
+            from components.java
+        }
+    }
     repositories {
         maven {
-            // Architectury
-            name 'Shedaniel\'s maven'
-            url 'https://maven.shedaniel.me/'
-            // url 'https://maven.architectury.dev/'
-            content {
-                includeGroup 'dev.architectury'
-            }
+            name = 'Local'
+            url = file('build/repo').toURI()
         }
+    }
+}
+
+idea {
+    module {
+        downloadSources = true
+        downloadJavadoc = true
     }
 }
